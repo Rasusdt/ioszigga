@@ -1,0 +1,319 @@
+name: iOS signed IPA
+
+# Собирает ZIGGA и подписывает .ipa сертификатом владельца репозитория.
+# Артефакт ZIGGA-signed-ipa -> ZIGGA-signed.ipa ставится на iPhone без переподписи.
+#
+# Секреты (Settings -> Secrets and variables -> Actions):
+#   BUILD_CERTIFICATE_BASE64  .p12 сертификата Apple Development / Apple Distribution, base64
+#   P12_PASSWORD              пароль от .p12
+#   PROFILE_APP_BASE64        .mobileprovision для com.zigga.vpn, base64
+#   PROFILE_TUNNEL_BASE64     .mobileprovision для com.zigga.vpn.tunnel, base64
+#   DEVELOPMENT_TEAM          Team ID, 10 символов
+#
+# Оба профиля обязаны содержать Network Extensions (packet-tunnel-provider),
+# иначе туннель не запустится: workflow проверяет это и падает заранее.
+
+on:
+  workflow_dispatch:
+    inputs:
+      export_method:
+        description: "development = свой iPhone, ad-hoc = до 100 UDID, app-store = TestFlight"
+        type: choice
+        options:
+          - development
+          - ad-hoc
+          - app-store
+        default: development
+
+permissions:
+  contents: write
+
+env:
+  APP_BUNDLE_ID: com.zigga.vpn
+  TUNNEL_BUNDLE_ID: com.zigga.vpn.tunnel
+
+jobs:
+  signed-ipa:
+    name: Build and sign .ipa
+    runs-on: macos-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Проверить, что секреты заданы
+        env:
+          CERT: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          PASS: ${{ secrets.P12_PASSWORD }}
+          PROFILE_APP: ${{ secrets.PROFILE_APP_BASE64 }}
+          PROFILE_TUNNEL: ${{ secrets.PROFILE_TUNNEL_BASE64 }}
+          TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+        run: |
+          set -euo pipefail
+          missing=""
+          [ -n "$CERT" ] || missing="$missing BUILD_CERTIFICATE_BASE64"
+          [ -n "$PASS" ] || missing="$missing P12_PASSWORD"
+          [ -n "$PROFILE_APP" ] || missing="$missing PROFILE_APP_BASE64"
+          [ -n "$PROFILE_TUNNEL" ] || missing="$missing PROFILE_TUNNEL_BASE64"
+          [ -n "$TEAM" ] || missing="$missing DEVELOPMENT_TEAM"
+          if [ -n "$missing" ]; then
+            echo "::error::Не заданы секреты:$missing"
+            echo "Settings -> Secrets and variables -> Actions -> New repository secret"
+            exit 1
+          fi
+
+      - name: Prepare sources
+        run: |
+          set -euo pipefail
+          if [ ! -f ios/project.yml ]; then
+            unzip -qo zigga-ios.zip -x ".github/*"
+          fi
+          ls ios
+
+      - name: Show Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Setup Go (нужен для сборки ядра AmneziaWG)
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: false
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Fetch AmneziaWG core sources (WireGuardKit)
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v3.1.4 \
+            https://github.com/amnezia-vpn/amneziawg-apple.git \
+            ios/Vendor/amneziawg-apple
+          ls ios/Vendor/amneziawg-apple/Sources/WireGuardKit | head
+
+      - name: Build libwg-go.a (device, arm64)
+        run: |
+          set -euo pipefail
+          SDKROOT="$(xcrun --sdk iphoneos --show-sdk-path)"
+          make -C ios/Vendor/amneziawg-apple/Sources/WireGuardKitGo build \
+            PLATFORM_NAME=iphoneos \
+            ARCHS=arm64 \
+            SDKROOT="$SDKROOT"
+          ls -la ios/Vendor/amneziawg-apple/Sources/WireGuardKitGo/out
+
+      - name: Импорт сертификата и профилей
+        env:
+          CERT: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          PASS: ${{ secrets.P12_PASSWORD }}
+          PROFILE_APP: ${{ secrets.PROFILE_APP_BASE64 }}
+          PROFILE_TUNNEL: ${{ secrets.PROFILE_TUNNEL_BASE64 }}
+          TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+
+          b64decode() {
+            if ! printf '%s' "$1" | base64 -D > "$2" 2>/dev/null; then
+              printf '%s' "$1" | base64 --decode > "$2"
+            fi
+          }
+
+          b64decode "$CERT" "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$PASS" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          # без этого codesign не получает доступ к ключу из keychain
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" \
+            $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$KEYCHAIN"
+
+          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILES_DIR"
+
+          install_profile() {
+            local b64="$1" tag="$2"
+            local raw="$RUNNER_TEMP/$tag.mobileprovision"
+            b64decode "$b64" "$raw"
+            security cms -D -i "$raw" > "$RUNNER_TEMP/$tag.plist"
+
+            # профиль должен разрешать packet-tunnel-provider, иначе подпись бесполезна
+            if ! plutil -convert xml1 -o - "$RUNNER_TEMP/$tag.plist" | grep -q packet-tunnel-provider; then
+              echo "::error::В профиле $tag нет entitlement packet-tunnel-provider. Включите Network Extensions у App ID и пересоздайте профиль."
+              exit 1
+            fi
+
+            local uuid name
+            uuid=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$RUNNER_TEMP/$tag.plist")
+            name=$(/usr/libexec/PlistBuddy -c "Print :Name" "$RUNNER_TEMP/$tag.plist")
+            # в stdout — только UUID, его перехватывает $(...) выше
+            echo "Профиль $tag: $name ($uuid)" >&2
+            cp "$raw" "$PROFILES_DIR/$uuid.mobileprovision"
+            echo "$uuid"
+          }
+
+          APP_PROFILE_UUID="$(install_profile "$PROFILE_APP" app)"
+          TUNNEL_PROFILE_UUID="$(install_profile "$PROFILE_TUNNEL" tunnel)"
+
+          {
+            echo "DEVELOPMENT_TEAM=$TEAM"
+            echo "APP_PROFILE_UUID=$APP_PROFILE_UUID"
+            echo "TUNNEL_PROFILE_UUID=$TUNNEL_PROFILE_UUID"
+          } >> "$GITHUB_ENV"
+
+      - name: Прописать профили в проект
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+
+          path = "ios/project.yml"
+          src = open(path, encoding="utf-8").read()
+
+          app = '        CODE_SIGN_ENTITLEMENTS: Config/ZIGGA.entitlements\n'
+          tun = '        CODE_SIGN_ENTITLEMENTS: Config/Tunnel.entitlements\n'
+          if app not in src or tun not in src:
+              sys.exit("project.yml: не найдены строки CODE_SIGN_ENTITLEMENTS")
+
+          src = src.replace(app, app + '        PROVISIONING_PROFILE_SPECIFIER: "${PROFILE_APP}"\n', 1)
+          src = src.replace(tun, tun + '        PROVISIONING_PROFILE_SPECIFIER: "${PROFILE_TUNNEL}"\n', 1)
+          assert src.count("PROVISIONING_PROFILE_SPECIFIER") == 2
+          open(path, "w", encoding="utf-8").write(src)
+          print("project.yml: профили приложения и расширения прописаны")
+          PY
+
+      - name: Generate Xcode project
+        run: |
+          set -euo pipefail
+          cd ios
+          xcodegen generate
+          # xcodegen подставляет ${PROFILE_APP}/${PROFILE_TUNNEL} из окружения.
+          # Если подстановка не сработала — падаем здесь, а не на подписи.
+          grep -q "$APP_PROFILE_UUID" ZIGGA.xcodeproj/project.pbxproj \
+            || { echo "::error::Профиль приложения не попал в проект"; exit 1; }
+          grep -q "$TUNNEL_PROFILE_UUID" ZIGGA.xcodeproj/project.pbxproj \
+            || { echo "::error::Профиль расширения не попал в проект"; exit 1; }
+
+      - name: Archive (signed)
+        run: |
+          set -euo pipefail
+          cd ios
+          xcodebuild archive \
+            -project ZIGGA.xcodeproj \
+            -scheme ZIGGA \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath build/ZIGGA.xcarchive \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            OTHER_CODE_SIGN_FLAGS="--timestamp"
+
+      - name: Export signed .ipa
+        env:
+          EXPORT_METHOD: ${{ inputs.export_method }}
+        run: |
+          set -euo pipefail
+          cd ios
+          METHOD="${EXPORT_METHOD:-development}"
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>${METHOD}</string>
+            <key>destination</key>
+            <string>export</string>
+            <key>teamID</key>
+            <string>${DEVELOPMENT_TEAM}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>compileBitcode</key>
+            <false/>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${APP_BUNDLE_ID}</key>
+              <string>${APP_PROFILE_UUID}</string>
+              <key>${TUNNEL_BUNDLE_ID}</key>
+              <string>${TUNNEL_PROFILE_UUID}</string>
+            </dict>
+          </dict>
+          </plist>
+          PLIST
+
+          rm -rf out && mkdir -p out
+          xcodebuild -exportArchive \
+            -archivePath build/ZIGGA.xcarchive \
+            -exportPath out \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+
+          IPA="$(find out -maxdepth 1 -name '*.ipa' | head -n 1)"
+          [ -n "$IPA" ] || { echo "::error::xcodebuild не создал .ipa"; exit 1; }
+          mv "$IPA" "out/ZIGGA-signed.ipa"
+          ls -la out
+
+      - name: Проверить подпись
+        run: |
+          set -euo pipefail
+          cd ios/out
+          rm -rf verify && mkdir verify && cd verify
+          unzip -q ../ZIGGA-signed.ipa
+          APP="Payload/ZIGGA.app"
+          APPEX="$APP/PlugIns/ZIGGATunnel.appex"
+
+          echo "== сертификат приложения =="
+          codesign -dv --verbose=2 "$APP" 2>&1 | sed -n '1,12p'
+          echo "== сертификат расширения =="
+          codesign -dv --verbose=2 "$APPEX" 2>&1 | sed -n '1,12p'
+          codesign --verify --deep --strict --verbose=2 "$APP"
+
+          echo "== entitlement приложения =="
+          codesign -d --entitlements :- "$APP" 2>/dev/null | tee /tmp/app-ent.plist
+          echo "== entitlement расширения =="
+          codesign -d --entitlements :- "$APPEX" 2>/dev/null | tee /tmp/appex-ent.plist
+
+          grep -q packet-tunnel-provider /tmp/app-ent.plist \
+            || { echo "::error::У приложения нет entitlement packet-tunnel-provider"; exit 1; }
+          grep -q packet-tunnel-provider /tmp/appex-ent.plist \
+            || { echo "::error::У расширения нет entitlement packet-tunnel-provider"; exit 1; }
+
+          # профили должны лежать внутри бандлов, иначе установка упадёт
+          [ -f "$APP/embedded.mobileprovision" ] || { echo "::error::Нет embedded.mobileprovision в приложении"; exit 1; }
+          [ -f "$APPEX/embedded.mobileprovision" ] || { echo "::error::Нет embedded.mobileprovision в расширении"; exit 1; }
+
+          echo "Подпись в порядке."
+          cd .. && rm -rf verify
+
+      - name: SHA-256
+        run: |
+          set -euo pipefail
+          cd ios/out
+          shasum -a 256 ZIGGA-signed.ipa | tee ZIGGA-signed.ipa.sha256
+
+      - name: Upload signed .ipa as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZIGGA-signed-ipa
+          path: |
+            ios/out/ZIGGA-signed.ipa
+            ios/out/ZIGGA-signed.ipa.sha256
+          if-no-files-found: error
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-build-log
+          path: ios/build/Logs
+          if-no-files-found: ignore
