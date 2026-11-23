@@ -111,6 +111,13 @@ struct HomeView: View {
                             .foregroundColor(Zig.danger)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+
+                    if let validationError = connectError {
+                        Text(validationError)
+                            .font(.system(size: 12.5))
+                            .foregroundColor(Zig.danger)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
             .padding(.top, 20)
@@ -195,11 +202,17 @@ struct HomeView: View {
         case .connected:
             tunnel.disconnect()
         case .disconnected:
-            // Неподтверждённый или отсутствующий конфиг не запускаем.
-            guard store.isValid, let config = store.config else { return }
-            connectError = nil
-            tunnel.connect(config: config) { message in
-                connectError = message
+            if !store.isValid {
+                connectError = store.summary
+                return
+            }
+            if let config = store.config {
+                connectError = nil
+                tunnel.connect(config: config) { message in
+                    connectError = message
+                }
+            } else {
+                connectError = "Конфиг не получен — нажмите «Обновить»"
             }
         }
     }
