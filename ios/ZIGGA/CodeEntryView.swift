@@ -60,7 +60,7 @@ struct CodeEntryView: View {
                 .multilineTextAlignment(.center)
                 .padding(.bottom, 12)
 
-            ZigGoldButton(title: "Нет пароля? Получи \uD83D\uDC47", action: onBot)
+            ZigGoldButton(title: "Нет пароля? Получи 👇", action: onBot)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
