@@ -1,67 +1,27 @@
 import SwiftUI
 
-/// Фон-постер: обновленный дизайн в стиле Android — градиент + геометрические акценты.
+/// Фон на весь экран: тёмно-синий полутоновый паттерн с голубым свечением
+/// из правого нижнего угла — как в переработанном Android-дизайне.
 struct ZiggaBackground: View {
     var body: some View {
         ZStack {
-            // Градиентный фон в стиле Android redesign
-            LinearGradient(
-                colors: [
-                    Color(hex: 0x0B0D06),
-                    Color(hex: 0x1A1F14),
-                    Color(hex: 0x0F150B)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            Zig.background.ignoresSafeArea()
 
-            // Геометрический акцент (обновленный дизайн)
             GeometryReader { geo in
-                ZStack {
-                    // Левая фигура
-                    Path { path in
-                        path.move(to: CGPoint(x: 0, y: geo.size.height / 2))
-                        path.addCurve(to: CGPoint(x: geo.size.width / 3, y: 0), 
-                                     control1: CGPoint(x: -50, y: geo.size.height / 4), 
-                                     control2: CGPoint(x: geo.size.width / 3 + 50, y: geo.size.height / 8))
-                    }
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(hex: 0xB4E832), Color(hex: 0x7A9C25)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: geo.size.width / 3, height: geo.size.height)
+                Image("BgZigga")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geo.size.width, height: geo.size.height)
                     .clipped()
-
-                    // Правая фигура
-                    Path { path in
-                        path.move(to: CGPoint(x: geo.size.width, y: 0))
-                        path.addCurve(to: CGPoint(x: geo.size.width * 2 / 3, y: geo.size.height / 2), 
-                                     control1: CGPoint(x: geo.size.width + 50, y: geo.size.height / 8), 
-                                     control2: CGPoint(x: geo.size.width * 2 / 3 - 50, y: geo.size.height * 3 / 4))
-                    }
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(hex: 0xE3B23C), Color(hex: 0xA57D25)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: geo.size.width / 3, height: geo.size.height)
-                    .clipped()
-                }
             }
             .ignoresSafeArea()
 
-            // Затемнение для читаемости
+            // Мягкое затемнение сверху и снизу, чтобы текст и карточки читались.
             LinearGradient(
                 colors: [
-                    Zig.background.opacity(0.70),
-                    Zig.background.opacity(0.36),
-                    Zig.background.opacity(0.92)
+                    Color.black.opacity(0.32),
+                    Color.black.opacity(0.06),
+                    Zig.background.opacity(0.62)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -133,7 +93,7 @@ struct PowerButtonView: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                Circle().fill(Color(hex: 0x0A0D06))
+                Circle().fill(Zig.disc)
                 Circle().stroke(Zig.dimRing, lineWidth: 9)
                 Circle()
                     .trim(from: 0, to: mode == .on ? 0.999 : 0.25)

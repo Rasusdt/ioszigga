@@ -112,12 +112,6 @@ struct HomeView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    if let validationError = connectError {
-                        Text(validationError)
-                            .font(.system(size: 12.5))
-                            .foregroundColor(Zig.danger)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
                 }
             }
             .padding(.top, 20)
@@ -203,7 +197,9 @@ struct HomeView: View {
             tunnel.disconnect()
         case .disconnected:
             if !store.isValid {
-                connectError = store.summary
+                connectError = store.hasConfig
+                    ? "Конфиг недействителен — нажмите «Обновить»"
+                    : "Конфиг не получен — нажмите «Обновить»"
                 return
             }
             if let config = store.config {
