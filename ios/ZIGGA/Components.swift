@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 /// Фон на весь экран: тёмно-синий полутоновый паттерн с голубым свечением
@@ -6,28 +7,70 @@ struct ZiggaBackground: View {
     var body: some View {
         ZStack {
             Zig.background.ignoresSafeArea()
-
-            GeometryReader { geo in
-                Image("BgZigga")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: geo.size.width, height: geo.size.height)
-                    .clipped()
-            }
-            .ignoresSafeArea()
+            HalftoneGlowBackground().ignoresSafeArea()
 
             // Мягкое затемнение сверху и снизу, чтобы текст и карточки читались.
             LinearGradient(
                 colors: [
-                    Color.black.opacity(0.32),
-                    Color.black.opacity(0.06),
-                    Zig.background.opacity(0.62)
+                    Color.black.opacity(0.30),
+                    Color.black.opacity(0.04),
+                    Zig.background.opacity(0.60)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
             .ignoresSafeArea()
         }
+    }
+}
+
+/// Полутоновая сетка точек, яркость которой растёт к правому нижнему углу.
+/// Рисуется кодом, поэтому остаётся резкой на любом экране и не весит мегабайты.
+private struct HalftoneGlowBackground: View {
+    var body: some View {
+        Canvas { context, size in
+            let center = CGPoint(x: size.width * 1.02, y: size.height * 1.02)
+            let radius = max(size.width, size.height) * 1.10
+
+            let glow = Gradient(stops: [
+                .init(color: Color(hex: 0x9CB6E4).opacity(0.40), location: 0),
+                .init(color: Color(hex: 0x7690BE).opacity(0.16), location: 0.34),
+                .init(color: Color.clear, location: 1)
+            ])
+            context.fill(
+                Path(CGRect(origin: .zero, size: size)),
+                with: .radialGradient(glow, center: center, startRadius: 0, endRadius: radius)
+            )
+
+            let step: CGFloat = 7
+            let rx = size.width * 1.25
+            let ry = size.height * 0.92
+            var y = step / 2
+            while y < size.height {
+                var x = step / 2
+                while x < size.width {
+                    let dx = Double((x - center.x) / rx)
+                    let dy = Double((y - center.y) / ry)
+                    let d = min(1.0, (dx * dx + dy * dy).squareRoot())
+                    let f = pow(1.0 - d, 1.75)
+                    let vertical = min(1.0, 0.45 + 0.55 * (1.0 - Double(y / size.height) * 0.35))
+                    let alpha = (0.075 + 0.925 * f) * vertical
+                    if alpha > 0.06 {
+                        let r = CGFloat(0.9 + 0.95 * f)
+                        let color = Color(
+                            red: 0.25 + 0.62 * f,
+                            green: 0.36 + 0.55 * f,
+                            blue: 0.54 + 0.46 * f
+                        ).opacity(alpha)
+                        let rect = CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)
+                        context.fill(Path(ellipseIn: rect), with: .color(color))
+                    }
+                    x += step
+                }
+                y += step
+            }
+        }
+        .drawingGroup()
     }
 }
 
