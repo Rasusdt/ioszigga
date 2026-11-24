@@ -1,0 +1,66 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; font-family: "Segoe UI", system-ui, sans-serif; color: #F3F7EC; background: #05070D; overflow: hidden; }
+
+#bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
+#app { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; }
+
+.screen { flex: 1; display: flex; flex-direction: column; padding: 16px 20px; }
+.screen.hidden { display: none; }
+
+.center-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+
+.avatar { width: 84px; height: 84px; border-radius: 50%; background: #0B101C; border: 2px solid transparent; background-image: linear-gradient(#0B101C,#0B101C), linear-gradient(135deg,#E3B23C,#B4E832); background-origin: border-box; background-clip: padding-box, border-box; display: flex; align-items: center; justify-content: center; font-size: 34px; }
+.avatar.small { width: 58px; height: 58px; font-size: 24px; }
+.avatar::after { content: "🔑"; }
+
+.brand { font-size: 26px; font-weight: 900; margin: 14px 0 0; color: #F3F7EC; }
+.muted { color: #98A4B8; font-size: 13px; text-align: center; }
+.muted.small { font-size: 11.5px; margin-top: 12px; }
+
+.pin-row { display: flex; gap: 10px; margin-top: 26px; width: 100%; }
+.pin-box { flex: 1; height: 62px; border-radius: 14px; background: rgba(255,255,255,0.08); border: 1.2px solid rgba(255,255,255,0.16); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 600; color: #F3F7EC; }
+.pin-box.filled { border-color: rgba(180,232,50,0.7); }
+#pinInput { position: absolute; opacity: 0.01; width: 1px; height: 1px; }
+
+.error { color: #FF6B6B; font-size: 12.5px; text-align: center; min-height: 18px; margin: 14px 0 0; }
+
+.pill { border: none; border-radius: 15px; padding: 14px; font-size: 13px; font-weight: 500; cursor: pointer; width: 100%; }
+.pill.filled { background: #B4E832; color: #131A07; }
+.pill.filled:disabled { opacity: 0.55; cursor: not-allowed; }
+.pill.outline { background: rgba(255,255,255,0.12); color: #F3F7EC; border: 1px solid rgba(255,255,255,0.22); }
+
+.gold-btn { width: 100%; height: 56px; border: none; border-radius: 18px; font-size: 15px; font-weight: 600; color: #181405; cursor: pointer; background: linear-gradient(90deg,#E3B23C,#F6DC85,#E3B23C); margin-top: 8px; }
+
+.header { display: flex; align-items: center; gap: 12px; }
+.header-text { flex: 1; }
+.brand-sm { font-size: 22px; font-weight: 900; color: #F3F7EC; }
+.subtitle { font-size: 12px; color: #98A4B8; }
+.bot-chip { background: rgba(180,232,50,0.12); color: #B4E832; border: 1px solid rgba(180,232,50,0.4); border-radius: 999px; padding: 7px 12px; font-size: 11px; font-weight: 500; cursor: pointer; }
+
+.card { margin-top: 20px; padding: 16px 14px; border-radius: 20px; background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.16); }
+.card-row { display: flex; align-items: center; gap: 10px; }
+.card-title { font-size: 15px; font-weight: 500; color: #F3F7EC; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-summary { font-size: 12.5px; color: #98A4B8; margin-top: 6px; }
+.card-line { font-size: 12.5px; color: #98A4B8; margin-top: 4px; }
+.card-line.gold { color: #E3B23C; }
+.card-line.danger { color: #FF6B6B; }
+.card-row2 { display: flex; gap: 12px; margin-top: 6px; font-size: 12.5px; color: #F3F7EC; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: #98A4B8; }
+.dot.connected { background: #B4E832; }
+.dot.connecting { background: #E3B23C; }
+.dot.error { background: #FF6B6B; }
+.spinner { width: 14px; height: 14px; border: 2px solid #98A4B8; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.power-wrap { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 220px; }
+.power-btn { width: 206px; height: 206px; border-radius: 50%; border: none; cursor: pointer; background: #0B101C; position: relative; display: flex; align-items: center; justify-content: center; color: #8FA6C6; box-shadow: none; }
+.power-btn.on { color: #B4E832; box-shadow: 0 0 26px rgba(180,232,50,0.35); }
+.power-btn.connecting { color: #E3B23C; }
+.power-ring { position: absolute; inset: 0; border-radius: 50%; border: 9px solid #1B2434; }
+.power-btn svg { position: relative; z-index: 2; }
+.power-btn.on .power-ring { border-color: #1B2434; border-top-color: #B4E832; }
+.power-btn.connecting .power-ring { border-color: #1B2434; border-top-color: #E3B23C; animation: spin 1.2s linear infinite; }
+
+.bottom-row, .extra-row { display: flex; justify-content: center; align-items: center; gap: 10px; padding-top: 10px; flex-wrap: wrap; }
+.link-btn { background: none; border: none; color: #F3F7EC; font-size: 12.5px; cursor: pointer; padding: 4px 6px; }
+.link-btn:hover { color: #B4E832; }

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZIGGA VPN</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <div id="app">
+    <section id="screen-code" class="screen">
+      <div class="center-col">
+        <div class="avatar" id="avatar"></div>
+        <h1 class="brand">ZIGGA VPN</h1>
+        <p class="muted">Введите 6-значный пароль</p>
+
+        <div class="pin-row" id="pinRow">
+          <div class="pin-box" data-i="0"></div>
+          <div class="pin-box" data-i="1"></div>
+          <div class="pin-box" data-i="2"></div>
+          <div class="pin-box" data-i="3"></div>
+          <div class="pin-box" data-i="4"></div>
+          <div class="pin-box" data-i="5"></div>
+        </div>
+        <input id="pinInput" type="tel" maxlength="6" autocomplete="one-time-code" />
+
+        <p class="error" id="codeError"></p>
+
+        <button class="pill filled" id="loginBtn" disabled>Войти</button>
+
+        <p class="muted small">Пароль выдаёт наш Telegram-бот. Данные обновляются при каждом запуске.</p>
+        <button class="gold-btn" id="botBtnCode">Нет пароля? Получи 👇</button>
+      </div>
+    </section>
+
+    <section id="screen-home" class="screen hidden">
+      <header class="header">
+        <div class="avatar small" id="avatar2"></div>
+        <div class="header-text">
+          <div class="brand-sm" id="brandTitle">ZIGGA VPN</div>
+          <div class="subtitle" id="subtitle">AmneziaWG · WireGuard</div>
+        </div>
+        <button class="bot-chip" id="botBtnHome">Наш бот</button>
+      </header>
+
+      <div class="card">
+        <div class="card-row">
+          <span class="dot" id="statusDot"></span>
+          <span class="card-title" id="configTitle">—</span>
+          <span class="spinner" id="homeSpinner" style="display:none"></span>
+        </div>
+        <div class="card-summary" id="configSummary">—</div>
+        <div class="card-line" id="accountLine"></div>
+        <div class="card-row2">
+          <span id="balanceLine"></span>
+          <span id="subLine"></span>
+        </div>
+        <div class="card-line gold" id="configStatus"></div>
+        <div class="card-line danger" id="statusError"></div>
+      </div>
+
+      <div class="power-wrap">
+        <button class="power-btn" id="powerBtn">
+          <span class="power-ring"></span>
+          <svg class="power-icon" viewBox="0 0 24 24" width="64" height="64"><path d="M12 2v10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5.5 6.5a8 8 0 1 0 13 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <p class="muted" id="powerHint">Нажмите, чтобы подключиться</p>
+
+      <div class="bottom-row">
+        <button class="link-btn" id="refreshBtn">Обновить</button>
+        <span class="muted">·</span>
+        <button class="link-btn" id="logoutBtn">Выйти</button>
+        <span class="muted">·</span>
+        <button class="link-btn" id="importBtn">Импорт конфига</button>
+      </div>
+
+      <div class="extra-row">
+        <button class="link-btn" id="exportBtn">Сохранить конфиг</button>
+        <button class="link-btn" id="wgBtn">Открыть в WireGuard</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="bg.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
