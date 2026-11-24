@@ -1,0 +1,48 @@
+{
+  "name": "zigga-vpn-windows",
+  "version": "1.0.0",
+  "description": "ZIGGA VPN — Windows client (6-digit code, AmneziaWG config, manual import)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win portable --x64",
+    "build:dir": "electron-builder --win portable --x64 --dir"
+  },
+  "build": {
+    "appId": "com.zigga.vpn",
+    "productName": "ZIGGA VPN",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "ZIGGA-VPN-${version}-windows-x64.exe"
+    }
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.9.1"
+  },
+  "allowScripts": {
+    "electron@28.3.3": true
+  }
+}

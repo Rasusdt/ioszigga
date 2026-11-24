@@ -1,0 +1,24 @@
+tools/
+assets_src/
+local.properties
+.gradle/
+build/
+app/build/
+*.iml
+.idea/
+
+# пароль от ключа подписи — не коммитим
+keystore.properties
+
+# Node / Electron
+node_modules/
+dist/
+
+# iOS / Xcode
+ios/Vendor/
+ios/build/
+ios/out/
+ios/*.xcodeproj/
+ios/*.xcworkspace/
+*.ipa
+DerivedData/
